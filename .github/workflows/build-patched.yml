@@ -6,12 +6,17 @@ on:
     # 每天 6:00 UTC 检查一次
     - cron: '0 6 * * *'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -32,6 +37,12 @@ jobs:
       - name: Check for upstream changes
         id: check
         run: |
+          # 如果 patched 目录不存在，强制重建
+          if [ ! -f patched/3x-ui-install.sh ] || [ ! -f patched/x-ui.sh ]; then
+            echo "patched 文件缺失，强制重建"
+            echo "skip=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
           if [ -f .checksums ]; then
             old_install=$(sed -n '1p' .checksums)
             old_xui=$(sed -n '2p' .checksums)
@@ -65,8 +76,12 @@ jobs:
       - name: Commit patched scripts
         if: steps.check.outputs.skip == 'false'
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add -A
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add patched/ .checksums
+          if git diff --cached --quiet; then
+            echo "无文件变更，跳过 commit"
+            exit 0
+          fi
           git commit -m "auto: update patched scripts ($(date +%Y-%m-%d))"
           git push

@@ -1,5 +1,4 @@
 install.sh
 x-ui.sh
 *.bak
-patched/
 node_modules/
