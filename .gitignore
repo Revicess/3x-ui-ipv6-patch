@@ -1,3 +1,4 @@
-install.sh
-x-ui.sh
+/install.sh
+/x-ui.sh
+*.bak
 node_modules/
