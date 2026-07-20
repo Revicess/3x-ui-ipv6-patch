@@ -2,25 +2,12 @@ name: Build Patched Scripts
 
 on:
   workflow_dispatch:
-    inputs:
-      install_url:
-        description: 'install.sh URL'
-        required: false
-        default: 'https://raw.githubusercontent.com/MHSanaei/3x-ui/main/install.sh'
-      xui_url:
-        description: 'x-ui.sh URL'
-        required: false
-        default: 'https://raw.githubusercontent.com/MHSanaei/3x-ui/main/x-ui.sh'
   schedule:
     # 每天 6:00 UTC 检查一次
     - cron: '0 6 * * *'
 
-env:
-  INSTALL_URL: 'https://raw.githubusercontent.com/MHSanaei/3x-ui/main/install.sh'
-  XUI_URL: 'https://raw.githubusercontent.com/MHSanaei/3x-ui/main/x-ui.sh'
-
 jobs:
-  check-and-patch:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,12 +20,8 @@ jobs:
 
       - name: Download original scripts
         run: |
-          INSTALL_URL="${{ github.event.inputs.install_url || env.INSTALL_URL }}"
-          XUI_URL="${{ github.event.inputs.xui_url || env.XUI_URL }}"
-          curl -sLO "$INSTALL_URL"
-          curl -sLO "$XUI_URL"
-          echo "install_url=$INSTALL_URL" >> $GITHUB_ENV
-          echo "xui_url=$XUI_URL" >> $GITHUB_ENV
+          curl -sLO https://raw.githubusercontent.com/MHSanaei/3x-ui/main/install.sh
+          curl -sLO https://raw.githubusercontent.com/MHSanaei/3x-ui/main/x-ui.sh
 
       - name: Compute checksums
         id: checksum
@@ -46,14 +29,7 @@ jobs:
           echo "install_sha=$(sha256sum install.sh | cut -d' ' -f1)" >> $GITHUB_OUTPUT
           echo "xui_sha=$(sha256sum x-ui.sh | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
-      - name: Restore previous checksums
-        id: cache
-        uses: actions/cache@v4
-        with:
-          path: .checksums
-          key: upstream-checksums-${{ steps.checksum.outputs.install_sha }}-${{ steps.checksum.outputs.xui_sha }}
-
-      - name: Check if updated
+      - name: Check for upstream changes
         id: check
         run: |
           if [ -f .checksums ]; then
@@ -63,39 +39,34 @@ jobs:
                [ "$old_xui" = "${{ steps.checksum.outputs.xui_sha }}" ]; then
               echo "upstream 无更新，跳过"
               echo "skip=true" >> $GITHUB_OUTPUT
-            else
-              echo "upstream 有更新，开始打补丁"
-              echo "skip=false" >> $GITHUB_OUTPUT
+              exit 0
             fi
-          else
-            echo "首次运行，开始打补丁"
-            echo "skip=false" >> $GITHUB_OUTPUT
           fi
+          echo "upstream 有更新，开始打补丁"
+          echo "skip=false" >> $GITHUB_OUTPUT
 
       - name: Apply patches
-        if: steps.check.outputs.skip != 'true'
+        if: steps.check.outputs.skip == 'false'
         run: |
-          node patch.js
-          echo "=== 补丁完成 ==="
+          GITHUB_REPOSITORY="${{ github.repository }}" node patch.js
 
       - name: Verify syntax
-        if: steps.check.outputs.skip != 'true'
+        if: steps.check.outputs.skip == 'false'
         run: |
           bash -n install.sh && echo "install.sh: ✓"
           bash -n x-ui.sh && echo "x-ui.sh: ✓"
 
       - name: Save checksums
-        if: steps.check.outputs.skip != 'true'
+        if: steps.check.outputs.skip == 'false'
         run: |
           echo "${{ steps.checksum.outputs.install_sha }}" > .checksums
           echo "${{ steps.checksum.outputs.xui_sha }}" >> .checksums
 
-      - name: Upload patched scripts
-        if: steps.check.outputs.skip != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: patched-scripts
-          path: |
-            patched/3x-ui-install.sh
-            patched/x-ui.sh
-          compression-level: 9
+      - name: Commit patched scripts
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "auto: update patched scripts ($(date +%Y-%m-%d))"
+          git push
