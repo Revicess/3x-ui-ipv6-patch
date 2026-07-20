@@ -5,7 +5,7 @@
 ## 用法
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/用户名/仓库名/main/patched/3x-ui-install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/Revicess/3x-ui-ipv6-patch/main/patched/3x-ui-install.sh)
 ```
 
 ## GitHub Actions
