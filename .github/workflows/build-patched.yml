@@ -3,8 +3,8 @@ name: Build Patched Scripts
 on:
   workflow_dispatch:
   schedule:
-    # 每天 6:00 UTC 检查一次
-    - cron: '0 6 * * *'
+    # 每月1号 6:00 UTC 检查一次
+    - cron: '0 6 1 * *'
 
 permissions:
   contents: write
